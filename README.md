@@ -21,7 +21,7 @@ Sistem ini memisahkan lapisan perangkat keras/simulator, *backend* API, dan anta
 
 ## Fitur yang Diimplementasikan
 
-Selain fungsionalitas dasar praktikum, proyek ini juga mencakup seluruh **5 fitur pengembangan (nilai tambah)**:
+Selain fungsionalitas dasar praktikum, proyek ini juga mencakup seluruh **5 fitur pengembangan**:
 
 1. **Endpoint Threshold & Notifikasi Otomatis (`/api/threshold`):** Mendukung metode `GET` dan `PUT` untuk mengubah batas maksimal suhu secara dinamis serta mengirim peringatan otomatis ke topik MQTT `iot/notifikasi` apabila suhu melebihi batas.
 2. **Grafik Real-time (`Chart.js`):** Visualisasi fluktuasi suhu ($^\circ\text{C}$) dan kelembapan ($\%$) secara langsung pada halaman *dashboard*.
