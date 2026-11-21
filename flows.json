@@ -1,0 +1,31 @@
+[
+ {"id":"flow_api","type":"tab","label":"REST API IoT","disabled":false,"info":""},
+ {"id":"mqtt_broker_config","type":"mqtt-broker","name":"Local Mosquitto","broker":"localhost","port":"1883","clientid":"node-red-backend","autoConnect":true,"usetls":false,"protocolVersion":"4","keepalive":"60","cleansession":true},
+ {"id":"sqlite_db","type":"sqlitedb","db":"iot.db","mode":"RWC"},
+ {"id":"ws_listener","type":"websocket-listener","path":"/ws/sensor","wholemsg":"false"},
+
+ {"id":"mqtt_sensor_in","type":"mqtt in","z":"flow_api","name":"Subscribe Sensor","topic":"iot/sensor","qos":"0","datatype":"json","broker":"mqtt_broker_config","x":150,"y":80,"wires":[["proses_sensor"]]},
+ {"id":"proses_sensor","type":"function","z":"flow_api","name":"Proses Sensor + Threshold","func":"const d=msg.payload;\nif(typeof d!=='object'||d.suhu===undefined)return null;\nd.received=new Date().toISOString();\nconst th=flow.get('threshold')||{max:30};\nd.max=th.max;\nd.alert=d.suhu>th.max;\nflow.set('lastSensor',d);\nconst db={params:{$suhu:d.suhu,$kelembaban:d.kelembaban,$ts:d.timestamp,$received:d.received}};\nconst ws={payload:d};\nconst notif=d.alert?{topic:'iot/notifikasi',payload:{pesan:'Suhu '+d.suhu+' melewati batas '+th.max,suhu:d.suhu,waktu:d.received}}:null;\nreturn [db,ws,notif];","outputs":3,"x":410,"y":80,"wires":[["sql_insert"],["ws_out","debug_sensor"],["mqtt_out"]]},
+ {"id":"sql_insert","type":"sqlite","z":"flow_api","mydb":"sqlite_db","sqlquery":"prepared","sql":"INSERT INTO sensor(suhu,kelembaban,ts,received) VALUES ($suhu,$kelembaban,$ts,$received);","name":"Simpan ke SQLite","x":690,"y":40,"wires":[[]]},
+ {"id":"ws_out","type":"websocket out","z":"flow_api","name":"Broadcast WebSocket","server":"ws_listener","client":"","x":700,"y":80,"wires":[]},
+ {"id":"debug_sensor","type":"debug","z":"flow_api","name":"Log Sensor","active":true,"complete":"payload","x":670,"y":120,"wires":[]},
+ {"id":"mqtt_out","type":"mqtt out","z":"flow_api","name":"Publish MQTT","topic":"","qos":"0","retain":"false","broker":"mqtt_broker_config","x":680,"y":160,"wires":[]},
+
+ {"id":"init_tabel","type":"inject","z":"flow_api","name":"Saat deploy","props":[{"p":"payload"}],"repeat":"","crontab":"","once":true,"onceDelay":"1","topic":"","payload":"","payloadType":"date","x":140,"y":240,"wires":[["sql_create"]]},
+ {"id":"sql_create","type":"sqlite","z":"flow_api","mydb":"sqlite_db","sqlquery":"fixed","sql":"CREATE TABLE IF NOT EXISTS sensor(id INTEGER PRIMARY KEY AUTOINCREMENT,suhu REAL,kelembaban REAL,ts TEXT,received TEXT);","name":"Buat Tabel","x":400,"y":240,"wires":[[]]},
+
+ {"id":"in_suhu","type":"http in","z":"flow_api","name":"GET /api/suhu","url":"/api/suhu","method":"get","upload":false,"swaggerDoc":"","x":150,"y":320,"wires":[["router"]]},
+ {"id":"in_history","type":"http in","z":"flow_api","name":"GET /api/history","url":"/api/history","method":"get","upload":false,"swaggerDoc":"","x":160,"y":370,"wires":[["router"]]},
+ {"id":"in_kontrol","type":"http in","z":"flow_api","name":"POST /api/kontrol","url":"/api/kontrol","method":"post","upload":false,"swaggerDoc":"","x":160,"y":420,"wires":[["router"]]},
+ {"id":"in_th_get","type":"http in","z":"flow_api","name":"GET /api/threshold","url":"/api/threshold","method":"get","upload":false,"swaggerDoc":"","x":170,"y":470,"wires":[["router"]]},
+ {"id":"in_th_put","type":"http in","z":"flow_api","name":"PUT /api/threshold","url":"/api/threshold","method":"put","upload":false,"swaggerDoc":"","x":170,"y":520,"wires":[["router"]]},
+
+ {"id":"router","type":"function","z":"flow_api","name":"Cek API Key + Router","func":"const key=env.get('API_KEY')||'iot-kampus-123';\nconst b=msg.payload,p=msg.req.path,m=msg.req.method;\nconst th=()=>flow.get('threshold')||{max:30};\nconst r=(c,x)=>{msg.statusCode=c;msg.payload=x;return [msg,null,null];};\nif(msg.req.headers['x-api-key']!==key)return r(401,{status:'error',message:'API key salah atau kosong'});\nif(p==='/api/suhu')return r(200,{status:'success',data:flow.get('lastSensor')||{suhu:null,kelembaban:null,timestamp:null},threshold:th(),server_time:new Date().toISOString()});\nif(p==='/api/history')return [null,msg,null];\nif(p==='/api/threshold'){\n if(m!=='PUT')return r(200,{status:'success',threshold:th()});\n const max=parseFloat(b&&b.max);\n if(!isFinite(max))return r(400,{status:'error',message:'max wajib berupa angka'});\n flow.set('threshold',{max});\n return r(200,{status:'success',threshold:{max}});\n}\nif(p==='/api/kontrol'){\n if(!b||!b.device||!b.action)return r(400,{status:'error',message:'device dan action wajib diisi'});\n const o=r(200,{status:'success',message:'Perintah terkirim',sent:b});\n o[2]={topic:'iot/kontrol',payload:b};\n return o;\n}\nreturn r(404,{status:'error',message:'endpoint tidak ada'});","outputs":3,"x":470,"y":420,"wires":[["http_resp"],["sql_history"],["mqtt_out"]]},
+ {"id":"sql_history","type":"sqlite","z":"flow_api","mydb":"sqlite_db","sqlquery":"fixed","sql":"SELECT suhu,kelembaban,ts AS timestamp,received FROM sensor ORDER BY id DESC LIMIT 50;","name":"Ambil 50 Data","x":720,"y":480,"wires":[["build_history"]]},
+ {"id":"build_history","type":"function","z":"flow_api","name":"Build Response History","func":"const d=(msg.payload||[]).reverse();\nmsg.statusCode=200;\nmsg.payload={status:'success',count:d.length,data:d};\nreturn msg;","outputs":1,"x":740,"y":530,"wires":[["http_resp"]]},
+ {"id":"http_resp","type":"http response","z":"flow_api","name":"HTTP Response + CORS","statusCode":"","headers":{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET, POST, PUT, OPTIONS","Access-Control-Allow-Headers":"Content-Type, X-API-Key"},"x":980,"y":420,"wires":[]},
+
+ {"id":"in_dashboard","type":"http in","z":"flow_api","name":"GET /dashboard","url":"/dashboard","method":"get","upload":false,"swaggerDoc":"","x":150,"y":590,"wires":[["read_dashboard"]]},
+ {"id":"read_dashboard","type":"file in","z":"flow_api","name":"Baca dashboard.html","filename":"E:\\Portfolio\\praktikum_iot\\dashboard.html","filenameType":"str","format":"utf8","chunk":false,"sendError":false,"encoding":"none","allProps":false,"x":430,"y":590,"wires":[["resp_dashboard"]]},
+ {"id":"resp_dashboard","type":"http response","z":"flow_api","name":"Kirim Halaman Web","statusCode":"200","headers":{"Content-Type":"text/html; charset=utf-8"},"x":710,"y":590,"wires":[]}
+]
