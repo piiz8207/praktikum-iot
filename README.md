@@ -1,6 +1,6 @@
 # Sistem Monitoring & Kontrol IoT Berbasis REST API Node-RED
 
-Repository ini berisi hasil pengerjaan **Tugas Praktek 9: REST API Node-RED untuk Sistem IoT** pada mata kuliah **Pemrograman Internet of Things (SIF1502)**, Program Studi S1 Sistem Informasi, Universitas Islam Kalimantan Muhammad Arsyad Al-Banjari.
+Repository ini berisi hasil pengerjaan **Tugas Praktek 9: REST API Node-RED untuk Sistem IoT** pada mata kuliah **Pemrograman Internet of Things (SIF1502)**,
 
 ## Identitas Mahasiswa
 * **Nama:** M. Hafizh Sparta
